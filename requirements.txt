@@ -1,0 +1,4 @@
+mysql-connector-python
+# mysql.connector.connect 실행 중 프로그램이 특별한 출력 없이 종료된다면, mysql-connector-python==9.0.0 설치 
+tabulate
+pandas
