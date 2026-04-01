@@ -95,8 +95,6 @@ def popularity_based_count():
          ORDER  BY prediction DESC, a.item ASC
          LIMIT  {rec_num}
     """
-    
-    # results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
     results = get_output(query)
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
     # TODO end
@@ -122,7 +120,6 @@ def popularity_based_rating():
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 results 변수에 저장하세요.
-    # results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
     query1 = f"""
         -- User 별 MIN / MAX 및 Count를 구한다. 여기서 평점이 없는 것들은 무시한다.
         DROP TABLE if EXISTS prob_2_1;
