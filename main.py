@@ -122,9 +122,61 @@ def popularity_based_rating():
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 results 변수에 저장하세요.
-    results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
+    # results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
+    query1 = f"""
+        -- User 별 MIN / MAX 및 Count를 구한다. 여기서 평점이 없는 것들은 무시한다.
+        DROP TABLE if EXISTS prob_2_1;
+        CREATE TABLE prob_2_1 AS
+        SELECT  user
+              , CASE WHEN COUNT(rating) = 1 THEN 0 ELSE MIN(rating) END AS min_rating
+              , MAX(rating) AS max_rating
+              , COUNT(rating) AS cnt
+          FROM  ratings
+         WHERE  rating IS NOT NULL
+         GROUP  BY user;
+         
+        -- User 별 보정Rating을 계산해서 임시 테이블에 적재
+        DROP TABLE if EXISTS prob_2_2;
+        CREATE TABLE prob_2_2 AS
+        SELECT  a.user AS user
+              , a.item AS item
+              , ROUND((a.rating - b.min_rating) / (b.max_rating - b.min_rating), 4) AS adj_rating 
+          FROM  ratings a
+          JOIN  prob_2_1 b
+            ON  a.user = b.user
+         WHERE  a.rating IS NOT NULL;
+        
+        -- 보정된 점수를 기반으로 아이템 별 사용자가 부여한 평점의 평균 구하기
+        DROP TABLE if EXISTS prob_2_3;
+        CREATE TABLE prob_2_3 AS
+        SELECT  item
+              , ROUND(AVG(adj_rating), 4) AS avg_rating
+          FROM  prob_2_2
+         GROUP  BY item
+         ;
+    """
+    get_output(query1)
 
+    query2 = f"""
+        SELECT  a.item AS item
+              , avg_rating AS prediction
+          FROM  prob_2_3 a
+         WHERE  1 = 1
+           AND  a.item NOT IN ( SELECT  item
+                                  FROM  prob_2_2
+                                 WHERE  user = {user} ) 
+         ORDER  BY prediction DESC, a.item ASC
+         LIMIT  {rec_num}
+    """
+    results = get_output(query2)
+    
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
+    query3 = """
+        DROP TABLE if EXISTS prob_2_1;
+        DROP TABLE if EXISTS prob_2_2;
+        DROP TABLE if EXISTS prob_2_3;
+    """
+    get_output(query3)
     # TODO end
 
     # Do not change this part

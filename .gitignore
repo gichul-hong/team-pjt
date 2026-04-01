@@ -1,0 +1,37 @@
+# --- OS 및 시스템 파일 ---
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- 개발 도구 (VS Code) ---
+.vscode/
+!.vscode/extensions.json
+*.code-workspace
+
+# --- 환경 변수 및 보안 (direnv 등) ---
+.env
+.env.local
+.envrc
+*.env.[development|production].local
+
+# --- Python 관련 ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# --- Node.js / Next.js 관련 ---
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- 기타 ---
+.cshrc
