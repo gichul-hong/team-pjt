@@ -193,3 +193,17 @@ SELECT  b.item
          ORDER  BY a.prediction DESC, a.item ASC
          LIMIT  {rec_num}
 
+
+
+-- #4
+-- calculate AA^T
+SELECT  a.user AS user_i       -- 행렬 A의 사용자 (Row)
+      , b.user AS user_j       -- 전치 행렬 B의 사용자 (Column)
+      , SUM(a.rating * b.rating) AS dot_product
+  FROM  ratings a
+  JOIN  ratings b 
+    ON  a.item = b.item 
+ GROUP  BY  a.user, b.user; 
+
+-- 각 유저 별로 아이템 평점 제곱의 합의 제곱근을 구한다. ||A||
+
