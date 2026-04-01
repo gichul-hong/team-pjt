@@ -20,9 +20,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ## Insert database information
 
 HOST = "astronaut.snu.ac.kr"
-USER = ""
-PASSWD = ""
-DB = ""
+USER = "DS2026_00038"
+PASSWD = "DS2026_00038"
+DB = "DS2026_00038"
 
 connection = mysql.connector.connect(
     host=HOST,
@@ -81,7 +81,23 @@ def popularity_based_count():
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 results 변수에 저장하세요.
-    results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
+    query = f"""
+        SELECT  a.item AS item
+              , COUNT(a.rating) AS prediction
+          FROM  ratings a
+         WHERE  1 = 1
+           AND  a.item NOT IN ( SELECT  item
+                                  FROM  ratings
+                                 WHERE  user = {user}
+                                   AND  rating IS NOT NULL ) 
+           AND  a.rating IS NOT NULL
+         GROUP  BY a.item
+         ORDER  BY prediction DESC, a.item ASC
+         LIMIT  {rec_num}
+    """
+    
+    # results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
+    results = get_output(query)
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
     # TODO end
 
