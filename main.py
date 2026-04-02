@@ -182,9 +182,8 @@ def ubcf():
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 results 변수에 저장하세요.
-    query1 = f"""
-        -- 사용자 별 평점을 보정하여 prob_3_2에 넣어준다. 
-        DROP TABLE if EXISTS prob_3_1;
+    get_output("DROP TABLE IF EXISTS prob_3_1")
+    get_output("""
         CREATE TABLE prob_3_1 AS
         SELECT  user
               , CASE WHEN COUNT(rating) = 1 THEN 0 ELSE MIN(rating) END AS min_rating
@@ -192,74 +191,72 @@ def ubcf():
               , COUNT(rating) AS cnt
           FROM  ratings
          WHERE  rating IS NOT NULL
-         GROUP  BY user;
-         
-        -- User 별 보정Rating을 계산해서 임시 테이블에 적재
-        DROP TABLE if EXISTS prob_3_2;
+         GROUP  BY user
+    """)
+
+    # 2. 보정 평점 테이블 생성 (prob_3_2)
+    get_output("DROP TABLE IF EXISTS prob_3_2")
+    get_output("""
         CREATE TABLE prob_3_2 AS
         SELECT  a.user AS user
               , a.item AS item
               , ROUND((a.rating - b.min_rating) / (b.max_rating - b.min_rating), 4) AS adj_rating 
           FROM  ratings a
-          JOIN  prob_3_1 b
-            ON  a.user = b.user
-         WHERE  a.rating IS NOT NULL;
-        
-        -- 사용자 별로 가장 유사도가 높은 이웃 K명을 구한다. 유사도가 같을 경우 번호가 작은 사용자를 우선한다. 
-        -- 가장 similar 한 5명을 구한다. 
-        DROP TABLE IF EXISTS prob_3_3;
+          JOIN  prob_3_1 b ON a.user = b.user
+         WHERE  a.rating IS NOT NULL
+    """)
+
+    # 3. 유사도 높은 이웃 5명 추출 (prob_3_3)
+    get_output("DROP TABLE IF EXISTS prob_3_3")
+    get_output(f"""
         CREATE TABLE prob_3_3 AS
         SELECT  a.user_2
               , a.sim
           FROM  user_similarity a
          WHERE  user_1 = {user}
            AND  user_1 != user_2
-         ORDER  BY a.sim DESC a.user_2 ASC
+         ORDER  BY a.sim DESC, a.user_2 ASC
          LIMIT  5
-        ;
-        
-        -- 각 사용자마다 계산된 유사도를 해당 사용자의 유사도의 총합으로 나누어 준다.
-        -- 나누어진 유사도는 소수점 넷째 자리까지 반올림한다.
+    """)
+
+    # 4. 유사도 정규화 (UPDATE)
+    get_output("""
         UPDATE  prob_3_3 a
-        CROSS  JOIN ( SELECT  SUM(sim) AS total_sum 
-                        FROM  prob_3_3
-                    ) b
-        SET a.sim = ROUND(a.sim / b.total_sum, 4);
-        
-        -- 행렬곱을 구한다. 여기서는 [1*5] 행렬과 [5*n]의 곱을 계산해야 한다. (n 은 아이템의 개수)
-        DROP TABLE IF EXISTS prob_3_4;
+        CROSS   JOIN (SELECT SUM(sim) AS total_sum FROM prob_3_3) b
+        SET     a.sim = ROUND(a.sim / b.total_sum, 4)
+    """)
+
+    # 5. 행렬곱 계산 (prob_3_4)
+    get_output("DROP TABLE IF EXISTS prob_3_4")
+    get_output("""
         CREATE TABLE prob_3_4 AS
         SELECT  b.item
               , ROUND(SUM(a.sim * b.adj_rating), 4) AS prediction
           FROM  prob_3_3 a
-          JOIN  prob_3_2 b
-            ON  a.user_2 = b.user
+          JOIN  prob_3_2 b ON a.user_2 = b.user
          GROUP  BY b.item
-        ;
-    """
-    get_output(query1)
+    """)
 
-    query2 = f"""
+    query = f"""
         SELECT  a.item AS item
-              , avg_rating AS prediction
+              , prediction
           FROM  prob_3_4 a
          WHERE  1 = 1
            AND  a.prediction >= {rec_num}
-           AND  a.item NOT IN ( SELECT  item
-                                  FROM  prob_3_2
-                                 WHERE  user = {user} ) 
+           AND  NOT EXiSTS ( SELECT  *
+                               FROM  prob_3_2 b
+                              WHERE  user = {user}
+                                AND  a.item = b.item ) 
          ORDER  BY a.prediction DESC, a.item ASC
     """
-    results = get_output(query2)
+    results = get_output(query)
+    print(results)
     
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
-    query3 = """
-        DROP TABLE if EXISTS prob_3_1;
-        DROP TABLE if EXISTS prob_3_2;
-        DROP TABLE if EXISTS prob_3_3;
-        DROP TABLE if EXISTS prob_3_4;
-    """
-    get_output(query3)
+    get_output("DROP TABLE IF EXISTS prob_3_1")
+    get_output("DROP TABLE IF EXISTS prob_3_2")
+    get_output("DROP TABLE IF EXISTS prob_3_3")
+    get_output("DROP TABLE IF EXISTS prob_3_4")
     # TODO end
 
     # Do not change this part
