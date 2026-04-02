@@ -181,6 +181,7 @@ def ubcf():
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
+
     # 쿼리의 결과를 results 변수에 저장하세요.
     get_output("DROP TABLE IF EXISTS prob_3_1")
     get_output("""
@@ -251,7 +252,7 @@ def ubcf():
     """
     results = get_output(query)
     print(results)
-    
+
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
     get_output("DROP TABLE IF EXISTS prob_3_1")
     get_output("DROP TABLE IF EXISTS prob_3_2")
@@ -277,10 +278,63 @@ def user_similarity():
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
+    queries = [
+        # 4-1: AA^T 계산 (내적)
+        "DROP TABLE IF EXISTS prob_4_1",
+        """
+        CREATE TABLE prob_4_1 AS
+        SELECT a.user AS user_i, b.user AS user_j, SUM(a.rating * b.rating) AS dot_product
+        FROM ratings a
+        JOIN ratings b ON a.item = b.item
+        GROUP BY a.user, b.user
+        """,
 
+        # 4-2: 유저별 평점 제곱 합의 제곱근 구하기 (L2 Norm)
+        "DROP TABLE IF EXISTS prob_4_2",
+        """
+        CREATE TABLE prob_4_2 AS
+        SELECT a.user, SQRT(SUM(a.rating * a.rating)) AS sqrt_sum
+        FROM ratings a
+        WHERE a.rating > 0
+        GROUP BY a.user
+        """,
+
+        # 4-3: Norm 값들의 곱 계산 (분모 부분)
+        "DROP TABLE IF EXISTS prob_4_3",
+        """
+        CREATE TABLE prob_4_3 AS
+        SELECT a.user AS user_i, b.user AS user_j, (a.sqrt_sum * b.sqrt_sum) AS dot_product
+        FROM prob_4_2 a
+        CROSS JOIN prob_4_2 b
+        """,
+
+        # 유사도 테이블 생성 (코사인 유사도: 내적 / (Norm1 * Norm2))
+        "DROP TABLE IF EXISTS my_user_similarity",
+        """
+        CREATE TABLE my_user_similarity AS
+        SELECT a.user_i AS user_1, a.user_j AS user_2,
+               ROUND(a.dot_product / b.dot_product, 1) AS sim
+        FROM prob_4_1 a
+        JOIN prob_4_3 b ON a.user_i = b.user_i AND a.user_j = b.user_j
+        """,
+
+        # 자기 자신과의 유사도 0으로 업데이트
+        """
+        UPDATE my_user_similarity
+        SET sim = 0
+        WHERE user_1 = user_2
+        """
+    ]
+
+    for q in queries:
+        get_output(q)
+ 
     # 유사도 연산을 직접 구현하여 my_user_similarity 테이블에 저장하세요.
     df = get_output("SELECT * FROM my_user_similarity")
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
+    get_output("DROP TABLE IF EXISTS prob_4_1")
+    get_output("DROP TABLE IF EXISTS prob_4_2")
+    get_output("DROP TABLE IF EXISTS prob_4_3")
     # TODO end
 
     # Do not change this part
