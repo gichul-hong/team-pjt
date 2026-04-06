@@ -121,9 +121,10 @@ def popularity_based_rating():
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 results 변수에 저장하세요.
     get_output("DROP TABLE if EXISTS prob_2_1")
-    
+
     # min / max 구하기
-    get_output("""
+    get_output(
+        """
         CREATE TABLE prob_2_1 AS
         SELECT  user
               , CASE WHEN COUNT(rating) = 1 THEN 0 ELSE MIN(rating) END AS min_rating
@@ -131,9 +132,11 @@ def popularity_based_rating():
           FROM  ratings 
          WHERE  rating IS NOT NULL 
          GROUP  BY user
-    """)
+    """
+    )
     get_output("DROP TABLE IF EXISTS prob_2_2")
-    get_output("""
+    get_output(
+        """
         CREATE  TABLE prob_2_2 AS
         SELECT  a.user
               , a.item, ROUND((a.rating - b.min_rating) / (b.max_rating - b.min_rating), 4) AS adj_rating 
@@ -141,15 +144,18 @@ def popularity_based_rating():
           JOIN  prob_2_1 b 
             ON  a.user = b.user 
          WHERE  a.rating IS NOT NULL
-    """)
+    """
+    )
     get_output("DROP TABLE IF EXISTS prob_2_3")
-    get_output("""
+    get_output(
+        """
         CREATE  TABLE prob_2_3 AS
         SELECT  item
               , ROUND(AVG(adj_rating), 4) AS avg_rating 
           FROM  prob_2_2 
          GROUP  BY item
-    """)
+    """
+    )
 
     query2 = f"""
         SELECT  a.item AS item
@@ -195,7 +201,8 @@ def ubcf():
 
     # 쿼리의 결과를 results 변수에 저장하세요.
     get_output("DROP TABLE IF EXISTS prob_3_1")
-    get_output("""
+    get_output(
+        """
         CREATE  TABLE prob_3_1 AS
         SELECT  user
               , MIN(rating) AS min_rating
@@ -204,11 +211,13 @@ def ubcf():
           FROM  ratings
          WHERE  rating IS NOT NULL
          GROUP  BY user
-    """)
+    """
+    )
 
     # 2. 보정 평점 테이블 생성 (prob_3_2)
     get_output("DROP TABLE IF EXISTS prob_3_2")
-    get_output("""
+    get_output(
+        """
         CREATE  TABLE prob_3_2 AS
         SELECT  a.user AS user
               , a.item AS item
@@ -221,11 +230,13 @@ def ubcf():
           FROM  ratings a
           JOIN  prob_3_1 b ON a.user = b.user
          WHERE  a.rating IS NOT NULL
-    """)
+    """
+    )
 
     # 3. 유사도 높은 이웃 추출 및 정규화
     get_output("DROP TABLE IF EXISTS prob_3_3")
-    get_output(f"""
+    get_output(
+        f"""
         CREATE  TABLE prob_3_3 AS
           WITH  temp AS (
                     SELECT  user_2, sim
@@ -237,18 +248,21 @@ def ubcf():
         SELECT  user_2
               , ROUND(sim / (SELECT SUM(sim) FROM temp), 4) AS sim_weight
           FROM  temp
-    """)
+    """
+    )
 
     # 행렬곱 계산 (prob_3_4)
     get_output("DROP TABLE IF EXISTS prob_3_4")
-    get_output("""
+    get_output(
+        """
         CREATE  TABLE prob_3_4 AS
         SELECT  b.item
               , ROUND(SUM(a.sim_weight * b.adj_rating), 4) AS prediction
           FROM  prob_3_3 a
           JOIN  prob_3_2 b ON a.user_2 = b.user
          GROUP  BY b.item
-    """)
+    """
+    )
 
     query = f"""
         SELECT  a.item AS item
@@ -303,7 +317,6 @@ def user_similarity():
             ON  a.item = b.item
          GROUP  BY a.user, b.user
         """,
-
         # 유저별 평점 제곱 합의 제곱근 구하기
         "DROP TABLE IF EXISTS prob_4_2",
         """
@@ -314,7 +327,6 @@ def user_similarity():
          WHERE  a.rating > 0
          GROUP  BY a.user
         """,
-
         # 또 내적
         "DROP TABLE IF EXISTS prob_4_3",
         """
@@ -325,7 +337,6 @@ def user_similarity():
           FROM  prob_4_2 a
          CROSS  JOIN prob_4_2 b
         """,
-
         # 유사도 테이블 생성
         "DROP TABLE IF EXISTS my_user_similarity",
         """
@@ -338,13 +349,12 @@ def user_similarity():
             ON  a.user_i = b.user_i 
            AND  a.user_j = b.user_j
         """,
-
         # 자기 자신과의 유사도 0으로 업데이트
         """
         UPDATE  my_user_similarity
            SET  sim = 0
          WHERE user_1 = user_2
-        """
+        """,
     ]
 
     for q in queries:
@@ -397,7 +407,7 @@ def execute():
             # Upload prj.sql before this
             # If autocommit=False, always execute after making cursor
             try:
-                file_path = os.path.join(BASE_DIR, 'prj.sql')
+                file_path = os.path.join(BASE_DIR, "prj.sql")
                 get_dump(connection, file_path)
                 print("Database initialized successfully.")
             except:
