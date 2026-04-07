@@ -119,63 +119,41 @@ def popularity_based_rating():
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
+    query = f"""
+    SELECT item, prediction
+    FROM (
+      SELECT item, ROUND(avg(std_rating), 4) as prediction
+      FROM 
+      (
+        SELECT ratings.user, item, ROUND((rating-min_rating) / (max_rating-min_rating), 4) as std_rating
+        FROM ratings 
+        JOIN 
+        (
+            SELECT user, max(rating) as max_rating,
+            CASE WHEN COUNT(rating)=1 THEN 0 ELSE min(rating) END as min_rating
+            FROM ratings
+            GROUP BY user
+        ) tmp
+        ON ratings.user=tmp.user
+      ) std_ratings
+      WHERE std_rating is not null
+      GROUP BY item
+    ) AS A
+    WHERE NOT EXISTS (
+        SELECT item 
+        FROM ratings r
+        WHERE user = {user} AND A.item = r.item AND rating is not null
+    )
+    ORDER BY prediction desc, item
+    LIMIT {rec_num}
+    """
+
     # 쿼리의 결과를 results 변수에 저장하세요.
-    get_output("DROP TABLE if EXISTS prob_2_1")
-
-    # min / max 구하기
-    get_output(
-        """
-        CREATE TABLE prob_2_1 AS
-        SELECT  user
-              , CASE WHEN COUNT(rating) = 1 THEN 0 ELSE MIN(rating) END AS min_rating
-              , MAX(rating) AS max_rating, COUNT(rating) AS cnt
-          FROM  ratings 
-         WHERE  rating IS NOT NULL 
-         GROUP  BY user
-    """
-    )
-    get_output("DROP TABLE IF EXISTS prob_2_2")
-    get_output(
-        """
-        CREATE  TABLE prob_2_2 AS
-        SELECT  a.user
-              , a.item, ROUND((a.rating - b.min_rating) / (b.max_rating - b.min_rating), 4) AS adj_rating 
-          FROM  ratings a 
-          JOIN  prob_2_1 b 
-            ON  a.user = b.user 
-         WHERE  a.rating IS NOT NULL
-    """
-    )
-    get_output("DROP TABLE IF EXISTS prob_2_3")
-    get_output(
-        """
-        CREATE  TABLE prob_2_3 AS
-        SELECT  item
-              , ROUND(AVG(adj_rating), 4) AS avg_rating 
-          FROM  prob_2_2 
-         GROUP  BY item
-    """
-    )
-
-    query2 = f"""
-        SELECT  a.item AS item
-              , avg_rating AS prediction
-          FROM  prob_2_3 a
-         WHERE  1 = 1
-           AND  NOT EXISTS ( SELECT  *
-                               FROM  prob_2_2 b
-                              WHERE  b.user = {user}
-                                AND  a.item = b.item ) 
-         ORDER  BY prediction DESC, a.item ASC
-         LIMIT  {rec_num}
-    """
-    results = get_output(query2)
-
+    results = get_output(query)
+    
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
-    get_output("DROP TABLE IF EXISTS prob_2_1")
-    get_output("DROP TABLE IF EXISTS prob_2_2")
-    get_output("DROP TABLE IF EXISTS prob_2_3")
     # TODO end
+    #=========================================================================
 
     # Do not change this part
     # do not change column names
@@ -196,96 +174,69 @@ def ubcf():
     print(f"User-based Collaborative Filtering")
     print(f"Recommendations for user {user}")
 
+    #=========================================================================
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
-
     # 쿼리의 결과를 results 변수에 저장하세요.
-    get_output("DROP TABLE IF EXISTS prob_3_1")
-    get_output(
-        """
-        CREATE  TABLE prob_3_1 AS
-        SELECT  user
-              , MIN(rating) AS min_rating
-              , MAX(rating) AS max_rating
-              , COUNT(rating) AS cnt
-          FROM  ratings
-         WHERE  rating IS NOT NULL
-         GROUP  BY user
-    """
-    )
-
-    # 2. 보정 평점 테이블 생성 (prob_3_2)
-    get_output("DROP TABLE IF EXISTS prob_3_2")
-    get_output(
-        """
-        CREATE  TABLE prob_3_2 AS
-        SELECT  a.user AS user
-              , a.item AS item
-              , ROUND(
-                    CASE 
-                        WHEN b.cnt = 1 THEN (a.rating - 0) / NULLIF(b.max_rating - 0, 0)
-                        ELSE (a.rating - b.min_rating) / NULLIF(b.max_rating - b.min_rating, 0)
-                    END
-                , 4) AS adj_rating 
-          FROM  ratings a
-          JOIN  prob_3_1 b ON a.user = b.user
-         WHERE  a.rating IS NOT NULL
-    """
-    )
-
-    # 3. 유사도 높은 이웃 추출 및 정규화
-    get_output("DROP TABLE IF EXISTS prob_3_3")
-    get_output(
-        f"""
-        CREATE  TABLE prob_3_3 AS
-          WITH  temp AS (
-                    SELECT  user_2, sim
-                      FROM  user_similarity
-                     WHERE  user_1 = {user} AND user_1 != user_2
-                     ORDER  BY sim DESC, user_2 ASC
-                     LIMIT  5
-               )
-        SELECT  user_2
-              , ROUND(sim / (SELECT SUM(sim) FROM temp), 4) AS sim_weight
-          FROM  temp
-    """
-    )
-
-    # 행렬곱 계산 (prob_3_4)
-    get_output("DROP TABLE IF EXISTS prob_3_4")
-    get_output(
-        """
-        CREATE  TABLE prob_3_4 AS
-        SELECT  b.item
-              , ROUND(SUM(a.sim_weight * b.adj_rating), 4) AS prediction
-          FROM  prob_3_3 a
-          JOIN  prob_3_2 b ON a.user_2 = b.user
-         GROUP  BY b.item
-    """
-    )
+    # 아래가 기존 답안 
 
     query = f"""
-        SELECT  a.item AS item
-              , prediction
-          FROM  prob_3_4 a
-         WHERE  1 = 1
-           AND  a.prediction >= {rec_num}
-           AND  NOT EXiSTS ( SELECT  *
-                               FROM  prob_3_2 b
-                              WHERE  user = {user}
-                                AND  a.item = b.item ) 
-         ORDER  BY a.prediction DESC, a.item ASC
+        SELECT item, ROUND(sum(point), 4) as prediction
+        FROM
+        (
+            SELECT user_2, item, std_sim*std_rating as point
+            FROM
+                (SELECT user_2, item, std_sim, std_rating
+                    FROM 
+                    (
+                        WITH t1 AS
+                        (
+                            SELECT user_2, sim
+                            FROM user_similarity u1
+                            WHERE
+                                u1.user_1 = {user}
+                            ORDER BY u1.sim DESC, user_2 ASC
+                            LIMIT 5
+                        )
+                        SELECT t1.user_2, t1.sim, ROUND(t1.sim/sum_sims.sum_sim, 4) as std_sim
+                        FROM t1
+                        CROSS JOIN
+                        (
+                            SELECT sum(sim) as sum_sim
+                            FROM t1
+                        )AS sum_sims
+                    ) t2
+                    JOIN 
+                    (
+                        SELECT ratings.user, item, ROUND((rating-min_rating) / (max_rating-min_rating), 4) as std_rating
+                        FROM ratings 
+                        JOIN 
+                        (
+                            SELECT user, max(rating) as max_rating,
+                            CASE WHEN COUNT(rating)=1 THEN 0 ELSE min(rating) END as min_rating
+                            FROM ratings
+                            GROUP BY user
+                        ) tmp
+                        ON ratings.user=tmp.user
+                    ) std_ratings
+                    ON user=user_2
+                ) AS A
+        ) AS B
+        WHERE NOT EXISTS (
+            SELECT item 
+            FROM ratings r
+            WHERE user = {user} AND B.item = r.item AND rating is not null
+        )
+        GROUP BY item
+        HAVING(prediction>{rec_num})
+        ORDER BY prediction DESC, item ASC
     """
     results = get_output(query)
-    print(results)
 
+    #results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
-    get_output("DROP TABLE IF EXISTS prob_3_1")
-    get_output("DROP TABLE IF EXISTS prob_3_2")
-    get_output("DROP TABLE IF EXISTS prob_3_3")
-    get_output("DROP TABLE IF EXISTS prob_3_4")
     # TODO end
-
+    #=========================================================================
     # Do not change this part
     # do not change column names
     df = pd.DataFrame(results, columns=["item", "prediction"])
@@ -304,68 +255,42 @@ def user_similarity():
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
-    queries = [
-        # AA^T 계산 (내적)
-        "DROP TABLE IF EXISTS prob_4_1",
-        """
-        CREATE  TABLE prob_4_1 AS
-        SELECT  a.user AS user_i
-              , b.user AS user_j
-              , SUM(a.rating * b.rating) AS dot_product
-          FROM  ratings a
-          JOIN  ratings b 
-            ON  a.item = b.item
-         GROUP  BY a.user, b.user
-        """,
-        # 유저별 평점 제곱 합의 제곱근 구하기
-        "DROP TABLE IF EXISTS prob_4_2",
-        """
-        CREATE  TABLE prob_4_2 AS
-        SELECT  a.user
-              , SQRT(SUM(a.rating * a.rating)) AS sqrt_sum
-          FROM  ratings a
-         WHERE  a.rating > 0
-         GROUP  BY a.user
-        """,
-        # 또 내적
-        "DROP TABLE IF EXISTS prob_4_3",
-        """
-        CREATE  TABLE prob_4_3 AS
-        SELECT  a.user AS user_i
-              , b.user AS user_j
-              , (a.sqrt_sum * b.sqrt_sum) AS dot_product
-          FROM  prob_4_2 a
-         CROSS  JOIN prob_4_2 b
-        """,
-        # 유사도 테이블 생성
-        "DROP TABLE IF EXISTS my_user_similarity",
-        """
-        CREATE  TABLE my_user_similarity AS
-        SELECT  a.user_i AS user_1
-              , a.user_j AS user_2
-              , ROUND(a.dot_product / b.dot_product, 1) AS sim
-          FROM  prob_4_1 a
-          JOIN  prob_4_3 b 
-            ON  a.user_i = b.user_i 
-           AND  a.user_j = b.user_j
-        """,
-        # 자기 자신과의 유사도 0으로 업데이트
-        """
-        UPDATE  my_user_similarity
-           SET  sim = 0
-         WHERE user_1 = user_2
-        """,
-    ]
+    get_output("DROP TABLE IF EXISTS my_user_similarity")
+    get_output("""
+        CREATE TABLE my_user_similarity AS
+        WITH UserNorms AS (
+            -- 1. 각 유저별 벡터의 크기(L2 Norm)를 미리 계산
+            SELECT  user
+                  , SQRT(SUM(rating * rating)) AS norm
+              FROM  ratings
+             WHERE  rating > 0
+             GROUP  BY user
+        ),
+        UserDotProduct AS (
+            -- 2. 유저 간의 내적(Dot Product) 계산 (공통 아이템 기준)
+            SELECT  a.user AS user_i
+                  , b.user AS user_j
+                  , SUM(a.rating * b.rating) AS dot_product
+              FROM  ratings a
+              JOIN  ratings b ON a.item = b.item
+             GROUP  BY a.user, b.user
+        )
+        -- 3. 최종 유사도 계산 및 자기 자신 제외 처리
+        SELECT  dp.user_i AS user_1
+              , dp.user_j AS user_2
+              , CASE 
+                    WHEN dp.user_i = dp.user_j THEN 0 
+                    ELSE ROUND(dp.dot_product / (ni.norm * nj.norm), 1) 
+                END AS sim
+          FROM  UserDotProduct dp
+          JOIN  UserNorms ni ON dp.user_i = ni.user
+          JOIN  UserNorms nj ON dp.user_j = nj.user;
+    """)
 
-    for q in queries:
-        get_output(q)
 
     # 유사도 연산을 직접 구현하여 my_user_similarity 테이블에 저장하세요.
     df = get_output("SELECT * FROM my_user_similarity")
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
-    get_output("DROP TABLE IF EXISTS prob_4_1")
-    get_output("DROP TABLE IF EXISTS prob_4_2")
-    get_output("DROP TABLE IF EXISTS prob_4_3")
     # TODO end
 
     # Do not change this part
