@@ -20,9 +20,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ## Insert database information
 
 HOST = "astronaut.snu.ac.kr"
-USER = "DS2026_00017"
-PASSWD = "DS2026_00017"
-DB = "DS2026_00017"
+USER = "DS2026_00038"
+PASSWD = "DS2026_00038"
+DB = "DS2026_00038"
 
 connection = mysql.connector.connect(
     host=HOST,
@@ -34,7 +34,6 @@ connection = mysql.connector.connect(
 )
 
 cur = connection.cursor(dictionary=True)
-
 
 ## 수정할 필요 없는 함수입니다.
 # DO NOT CHANGE INITIAL TABLES IN prj.sql
@@ -154,6 +153,7 @@ def popularity_based_rating():
     
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
     # TODO end
+    #=========================================================================
 
     # Do not change this part
     # do not change column names
@@ -174,6 +174,7 @@ def ubcf():
     print(f"User-based Collaborative Filtering")
     print(f"Recommendations for user {user}")
 
+    #=========================================================================
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 results 변수에 저장하세요.
@@ -231,9 +232,11 @@ def ubcf():
         ORDER BY prediction DESC, item ASC
     """
     results = get_output(query)
+
+    #results = [(50 - x, x / 10) for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
     # 최종 결과 얻은 뒤, 중간 계산 중 만든 table 삭제
     # TODO end
-
+    #=========================================================================
     # Do not change this part
     # do not change column names
     df = pd.DataFrame(results, columns=["item", "prediction"])
@@ -329,7 +332,7 @@ def execute():
             # Upload prj.sql before this
             # If autocommit=False, always execute after making cursor
             try:
-                file_path = os.path.join(BASE_DIR, 'prj.sql')
+                file_path = os.path.join(BASE_DIR, "prj.sql")
                 get_dump(connection, file_path)
                 print("Database initialized successfully.")
             except:
